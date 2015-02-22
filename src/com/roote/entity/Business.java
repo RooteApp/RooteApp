@@ -11,6 +11,7 @@ public class Business {
 	private Address address;
 	private ArrayList<Deal> deals;
 	private double overallRating;
+	private String ratingImage;
 	private int numberOfReviews;
 	private String photo;
 	private double longitude;
@@ -113,6 +114,14 @@ public class Business {
 		this.distance = distance;
 	}
 	
+	public String getRatingImage() {
+		return ratingImage;
+	}
+
+	public void setRatingImage(String ratingImage) {
+		this.ratingImage = ratingImage;
+	}
+	
 	public String toString(){
 		return "name: " + this.name + "\n" +
 			   "phone: " + this.phone + "\n" +
@@ -128,6 +137,8 @@ public class Business {
 			   "distance: " + this.distance + "\n------------\n";
 		
 	}
+
+	
 
 
 }

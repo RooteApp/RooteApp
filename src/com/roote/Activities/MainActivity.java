@@ -3,39 +3,61 @@ package com.roote.Activities;
 import info.androidhive.slidingmenu.adapter.NavDrawerListAdapter;
 import info.androidhive.slidingmenu.model.NavDrawerItem;
 
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import yelp.YelpAPI;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.TypedArray;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
 import android.support.v4.app.ActionBarDrawerToggle;
 import android.support.v4.widget.DrawerLayout;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup.LayoutParams;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
+import android.widget.CheckBox;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.GoogleMap.InfoWindowAdapter;
 import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.roote.R;
+import com.roote.csv.ReadCSV;
 import com.roote.entity.Business;
+import com.roote.entity.Importer;
 
+@SuppressLint("InflateParams")
 public class MainActivity extends Activity {
 	private DrawerLayout mDrawerLayout;
 	private ListView mDrawerList;
@@ -44,6 +66,15 @@ public class MainActivity extends Activity {
 	private LinearLayout DrawerLinear;
 	private ArrayList<Business> businesses;
 	static Location location;
+	private ArrayList<String> params;
+	private Map<Integer, Business> mapPin;
+	public static Marker marker;
+
+	private int[] pinImages = new int[] { R.drawable.pin_food,
+			R.drawable.pin_coffee, R.drawable.pin_grocery,
+			R.drawable.pin_entertainment, R.drawable.pin_health,
+			R.drawable.pin_mall, R.drawable.pin_clothing,
+			R.drawable.pin_nightlife };
 	Timer timer = new Timer();
 	int delay = 5000; // delay for 5 sec.
 	int period = 100000; // repeat every 10 secs.
@@ -62,8 +93,28 @@ public class MainActivity extends Activity {
 	private NavDrawerListAdapter adapter;
 	public MapFragment map;
 	private LocationManager locationManager;
-	private Context context;
 	private Activity activity;
+	private Context context;
+	private ProgressDialog dialog;
+	private android.app.ActionBar actionbar;
+	private ProgressBar spinner;
+
+	class YelpTask implements Runnable {
+
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			updateBusinessesList();
+			activity.runOnUiThread(new Runnable() {
+
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					spinner.setVisibility(View.INVISIBLE);
+				}
+			});
+		}
+	}
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -71,8 +122,24 @@ public class MainActivity extends Activity {
 		setContentView(R.layout.activity_main);
 
 		context = getApplicationContext();
+		actionbar = getActionBar();
 		activity = this;
-		
+		setupActionBar();
+
+		// Setup Guv Data
+		dialog = ProgressDialog.show(MainActivity.this, "",
+				"Loading Open Data. Please wait...", true);
+		new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+				// TODO Auto-generated method stub
+				Importer.importers = new ReadCSV().getImporters(context
+						.getAssets());
+				dialog.dismiss();
+			}
+		}).start();
+
 		DrawerLinear = (LinearLayout) findViewById(R.id.DrawerLinear);
 		mTitle = mDrawerTitle = getTitle();
 
@@ -91,16 +158,29 @@ public class MainActivity extends Activity {
 		// adding nav drawer items to array
 		for (int i = 0; i < navMenuTitles.length; i++) {
 			navDrawerItems.add(new NavDrawerItem(navMenuTitles[i], navMenuIcons
-					.getResourceId(i, -1)));
+					.getResourceId(i, -1), false));
 		}
 
 		// Recycle the typed array
 		navMenuIcons.recycle();
 
+		// Initialize params
+		params = new ArrayList<String>();
+
 		// setting the nav drawer list adapter
 		adapter = new NavDrawerListAdapter(getApplicationContext(),
 				navDrawerItems);
 		mDrawerList.setAdapter(adapter);
+		mDrawerList.setOnItemClickListener(new OnItemClickListener() {
+
+			@Override
+			public void onItemClick(AdapterView<?> arg0, View v, int arg2,
+					long arg3) {
+				// TODO Auto-generated method stub
+				CheckBox ch = (CheckBox) v.findViewById(R.id.checkbox);
+				ch.setChecked(!ch.isChecked());
+			}
+		});
 
 		// enabling action bar app icon and behaving it as toggle button
 		getActionBar().setDisplayHomeAsUpEnabled(true);
@@ -117,6 +197,20 @@ public class MainActivity extends Activity {
 				getActionBar().setTitle(mTitle);
 				// calling onPrepareOptionsMenu() to show action bar icons
 				invalidateOptionsMenu();
+				ListView slidermenu = (ListView) view
+						.findViewById(R.id.list_slidermenu);
+
+				params.clear();
+				for (int j = 0; j < slidermenu.getCount(); j++) {
+					View v = (View) slidermenu.getChildAt(j);
+					CheckBox ch = (CheckBox) v.findViewById(R.id.checkbox);
+					if (ch.isChecked()) {
+						params.add(navMenuTitles[j]);
+					}
+				}
+
+				spinner.setVisibility(View.VISIBLE);
+				new Thread(new YelpTask()).start();
 			}
 
 			public void onDrawerOpened(View drawerView) {
@@ -125,6 +219,7 @@ public class MainActivity extends Activity {
 				invalidateOptionsMenu();
 			}
 		};
+
 		mDrawerLayout.setDrawerListener(mDrawerToggle);
 
 		// Setup GPS
@@ -155,7 +250,7 @@ public class MainActivity extends Activity {
 							// Log.i("TAG", Double.toString(longitude));
 							LatLng coordinates = new LatLng(latitude, longitude);
 							gmap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-									coordinates, 17));
+									coordinates, 15));
 
 							isZoomed = true;
 						}
@@ -185,59 +280,128 @@ public class MainActivity extends Activity {
 
 					public void run() {
 
-						if (location != null) {
-							double latitute = location.getLatitude();
-							double longitude = location.getLongitude();
-
-							businesses = YelpAPI.getBusinesses("coffee",
-									latitute, longitude);
-							// for (Business business : businesses) {
-							// Log.i("Yelp", business.toString());
-							// }
-
-							// Get a handler that can be used to post to the
-							// main thread
-							activity.runOnUiThread(new Runnable() {
-								@Override
-								public void run() {
-									// Reload Map
-									map.getMapAsync(new OnMapReadyCallback() {
-
-										@Override
-										public void onMapReady(
-												GoogleMap googleMap) {
-											// TODO Auto-generated method stub
-											googleMap.clear();
-											
-											for (Business business : businesses) {
-
-												double latitude = business
-														.getLatitude();
-												double longitude = business
-														.getLongitude();
-												String bName = business
-														.getName();
-
-												LatLng coord = new LatLng(
-														latitude, longitude);
-
-												googleMap
-														.addMarker(new MarkerOptions()
-																.position(coord)
-																.title(bName));
-												// .icon(mapPoint.getMarker())
-												// .snippet(mapPoint.getInfoSnippetText()));
-											}
-										}
-									});
-								}
-							});
-						}
+						// Update Map
+						updateBusinessesList();
 					}
-
 				}, delay, period);
 			}
 		});
+	}
+
+	private void setupActionBar() {
+		actionbar.setDisplayShowCustomEnabled(true);
+		actionbar.setDisplayShowTitleEnabled(false);
+		actionbar.setIcon(R.drawable.category);
+		LayoutInflater inflator = (LayoutInflater) this
+				.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+		View v = inflator.inflate(R.layout.action_bar_title, null);
+		spinner = (ProgressBar) v.findViewById(R.id.progressBar1);
+		spinner.setVisibility(View.INVISIBLE);
+
+		// ImageView titleTV = (ImageView) v.findViewById(R.id.title);
+		// Typeface font = Typeface.createFromAsset(getAssets(),
+		// "fonts/your_custom_font.ttf");
+		// titleTV.setTypeface(font);
+
+		actionbar.setCustomView(v);
+
+		actionbar.setDisplayHomeAsUpEnabled(true);
+	}
+
+	private void updateBusinessesList() {
+		// TODO Auto-generated method stub
+		if (location != null) {
+			double latitute = location.getLatitude();
+			double longitude = location.getLongitude();
+
+			businesses = new ArrayList<Business>();
+			mapPin = new HashMap<Integer, Business>();
+
+			if (params != null) {
+				for (int i = 0; i < params.size(); i++) {
+					ArrayList<Business> newBusinesses = YelpAPI.getBusinesses(
+							params.get(i), latitute, longitude,
+							context.getAssets());
+					if (newBusinesses != null) {
+						businesses.addAll(newBusinesses);
+					}
+				}
+			}
+			drawMap();
+		}
+	}
+
+	private void drawMap() {
+		// Get a handler that can be used to post to the
+		// main thread
+		activity.runOnUiThread(new Runnable() {
+			@Override
+			public void run() {
+				// Reload Map
+				map.getMapAsync(new OnMapReadyCallback() {
+
+					@Override
+					public void onMapReady(GoogleMap googleMap) {
+						// TODO Auto-generated method stub
+						googleMap.clear();
+						googleMap.setInfoWindowAdapter(new CustomInfoWindowAdapter());
+
+						for (Business business : businesses) {
+
+							double latitude = business.getLatitude();
+							double longitude = business.getLongitude();
+							String bName = business.getName();
+
+							LatLng coord = new LatLng(latitude, longitude);
+							Marker marker = null;
+
+							for (int i = 0; i < navMenuTitles.length; i++) {
+								if (business.getType() == navMenuTitles[i]) {
+									BitmapDescriptor iconBitmap = BitmapDescriptorFactory
+											.fromResource(pinImages[i]);
+
+									marker = googleMap
+											.addMarker(new MarkerOptions()
+													.position(coord)
+													.title(bName)
+													.icon(iconBitmap));
+									break;
+								}
+							}
+							if (marker != null) {
+								mapPin.put(marker.hashCode(), business);
+							}
+						}
+					}
+				});
+			}
+		});
+	}
+
+	class DownloadImageTask extends AsyncTask<String, Void, Bitmap> {
+		ImageView bmImage;
+		Marker marker;
+
+		public DownloadImageTask(ImageView bmImage, Marker marker) {
+			this.bmImage = bmImage;
+		}
+
+		protected Bitmap doInBackground(String... urls) {
+			String urldisplay = urls[0];
+			Bitmap mIcon11 = null;
+			try {
+				InputStream in = new java.net.URL(urldisplay).openStream();
+				mIcon11 = BitmapFactory.decodeStream(in);
+			} catch (Exception e) {
+				Log.e("Error", e.getMessage());
+				e.printStackTrace();
+			}
+			return mIcon11;
+		}
+
+		protected void onPostExecute(Bitmap result) {
+			bmImage.setImageBitmap(result);
+		}
 	}
 
 	/**
@@ -307,5 +471,55 @@ public class MainActivity extends Activity {
 		super.onConfigurationChanged(newConfig);
 		// Pass any configuration change to the drawer toggls
 		mDrawerToggle.onConfigurationChanged(newConfig);
+	}
+
+	private class CustomInfoWindowAdapter implements InfoWindowAdapter {
+
+		private View v;
+
+		public CustomInfoWindowAdapter() {
+			v = getLayoutInflater().inflate(R.layout.info_window_layout, null);
+		}
+
+		@Override
+		public View getInfoWindow(Marker marker) {
+			return null;
+		}
+
+		@Override
+		public View getInfoContents(final Marker marker) {
+			MainActivity.this.marker = marker;
+
+			Business business = (Business) mapPin.get(marker.hashCode());
+
+			TextView tvName = (TextView) v.findViewById(R.id.name);
+			TextView tvType = (TextView) v.findViewById(R.id.type);
+			TextView tvDeal = (TextView) v.findViewById(R.id.deal);
+			ImageView ivImage = (ImageView) v.findViewById(R.id.image);
+			TextView tvAddress = (TextView) v.findViewById(R.id.address);
+			ImageView ivRating = (ImageView) v.findViewById(R.id.rating);
+
+			if (business != null) {
+				if (business.getName() != null) {
+					tvName.setText(business.getName());
+				}
+				if (business.getType() != null) {
+					tvType.setText(business.getType());
+				}
+				if (business.getAddress() != null) {
+					tvAddress.setText(business.getAddress().toString());
+				}
+				if (business.getRatingImage() != null) {
+					new DownloadImageTask(ivRating, marker).execute(business
+							.getRatingImage());
+				}
+				if (business.getPhoto() != null) {
+					new DownloadImageTask(ivImage, marker).execute(business
+							.getPhoto());
+				}
+			}
+			
+			return v;
+		}
 	}
 }

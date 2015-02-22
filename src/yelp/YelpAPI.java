@@ -13,20 +13,25 @@ import org.scribe.model.Token;
 import org.scribe.model.Verb;
 import org.scribe.oauth.OAuthService;
 
+import android.annotation.SuppressLint;
+import android.content.res.AssetManager;
 import android.util.Log;
 
+import com.roote.Utils.LevenshteinCalculator;
 import com.roote.entity.Address;
 import com.roote.entity.Business;
 import com.roote.entity.Deal;
+import com.roote.entity.Importer;
 
 public class YelpAPI {
 
   private static final String API_HOST = "api.yelp.com";
-  private static final String DEFAULT_TERM = "seefu-hair";
+  private static final String DEFAULT_TERM = "starbucks";
   private static final double DEFAULT_LATITUDE = 43.6501295;
   private static final double DEFAULT_LONGITUDE = -79.3833457;
-  private static final int DEFAULT_RADIUS = 20000; // 20 Km
-  private static final int SEARCH_LIMIT = 20;
+  private static final int DEFAULT_RADIUS = 10000; // 10 Km
+  private static final int SEARCH_LIMIT = 10;
+  private static final double DEFAULT_FILTER_VALUE = 0.3;
   private static final String SEARCH_PATH = "/v2/search";
   private static final String BUSINESS_PATH = "/v2/business";
 
@@ -129,98 +134,245 @@ public class YelpAPI {
     JSONParser parser = new JSONParser();
     JSONObject response = null;
     try {
-      response = (JSONObject) parser.parse(searchResponseJSON);
+    		response = (JSONObject) parser.parse(searchResponseJSON);
     } catch (ParseException pe) {
-      System.out.println("Error: could not parse searchResponseJSON response:");
-      System.out.println(searchResponseJSON);
-      System.exit(1);
+    		System.out.println("Error: could not parse searchResponseJSON response:");
+    		System.out.println(searchResponseJSON);
+    		System.exit(1);
     }
 
     ArrayList<Business> businesses = new ArrayList<Business>();
-    JSONArray businessesJSON = (JSONArray) response.get("businesses");
+    try{
+    		JSONArray businessesJSON = (JSONArray) response.get("businesses");
     
-    for(int i = 0; i< businessesJSON.size(); i++){
-    	JSONObject businessJSON = (JSONObject) businessesJSON.get(i);
-    	
-    	if (businessJSON.get("is_closed").toString() == "false"){
-    		String businessResponseJSON = yelpApi.searchByBusinessId(businessJSON.get("id").toString());
-    		JSONObject responseBusiness = null;
-    		try {
-    			  responseBusiness = (JSONObject) parser.parse(businessResponseJSON);
-    		} catch (ParseException pe) {
-    		      System.out.println("Error: could not parse businessResponseJSON response:");
-    		      System.out.println(businessResponseJSON);
-    		      System.exit(1);
-    		}
-    		try{
-    		// Find address
-    		JSONObject businessLocation = (JSONObject) responseBusiness.get("location");
-    		@SuppressWarnings("unchecked")
-			ArrayList<String> businessNeighborhoods = (ArrayList<String>) businessLocation.get("neighborhoods");
-    		@SuppressWarnings("unchecked")
-			ArrayList<String> businessAddress = (ArrayList<String>) businessLocation.get("address");
-    		Address address = new Address();
-    		
-	    		address.setStreet(businessAddress.get(0).toString());
-	    		address.setNeighbourhood(businessNeighborhoods.get(0).toString());
-	    		address.setCity(businessLocation.get("city").toString());
-	    		address.setPostalCode(businessLocation.get("postal_code").toString());
-	    		address.setState(businessLocation.get("state_code").toString());
-	    		address.setCountry(businessLocation.get("country_code").toString());
-    		
-    		// Find deals
-    		ArrayList<Deal> deals = new ArrayList<Deal>();
-    		JSONArray businessDeals = (JSONArray) responseBusiness.get("deals");
-    		if(businessDeals != null){
-	    		for(int j = 0; j < businessDeals.size(); j++){
-	    			JSONObject businessDeal = (JSONObject) businessDeals.get(j);
-	    			Deal deal = new Deal();
-	    			deal.setTitle(businessDeal.get("title").toString());
-	    			deal.setLink(businessDeal.get("url").toString());
-	    			deal.setCurrency(businessDeal.get("currency_code").toString());
-	    			deal.setImage(businessDeal.get("image_url").toString());
-	    			deal.setPopular(Boolean.valueOf(businessDeal.get("is_popular").toString()));
-	    			deals.add(deal);
+	    for(int i = 0; i< businessesJSON.size(); i++){
+	    		JSONObject businessJSON = (JSONObject) businessesJSON.get(i);
+	    	
+	    		if (businessJSON.get("is_closed").toString() == "false"){
+	    			String businessResponseJSON = yelpApi.searchByBusinessId(businessJSON.get("id").toString());
+	    			JSONObject responseBusiness = null;
+	    			try {
+	    				responseBusiness = (JSONObject) parser.parse(businessResponseJSON);
+	    			} catch (ParseException pe) {
+	    				System.out.println("Error: could not parse businessResponseJSON response:");
+	    				System.out.println(businessResponseJSON);
+	    				System.exit(1);
+	    			}
+	    			// Find address
+	    			JSONObject businessLocation = null;
+	    			try{
+	    				businessLocation = (JSONObject) responseBusiness.get("location");
+	    			}catch(Exception e){
+	    				Log.i("ErrorYelp", e.toString());
+	    			}
+	    			Address address = new Address();
+				try{
+	    				@SuppressWarnings("unchecked")
+	    				ArrayList<String> businessNeighborhoods = (ArrayList<String>) businessLocation.get("neighborhoods");
+	    				address.setNeighbourhood(businessNeighborhoods.get(0).toString());
+				}catch(Exception e){
+					Log.i("ErrorYelp", e.toString());
+				}
+				try{
+					@SuppressWarnings("unchecked")
+					ArrayList<String> businessAddress = (ArrayList<String>) businessLocation.get("address");
+					address.setStreet(businessAddress.get(0).toString());
+				}catch(Exception e){
+					Log.i("ErrorYelp", e.toString());
+				}
+				try{
+		    			address.setCity(businessLocation.get("city").toString());
+				}catch(Exception e){
+					Log.i("ErrorYelp", e.toString());
+				}
+				try{
+		    			address.setPostalCode(businessLocation.get("postal_code").toString());
+				}catch(Exception e){
+					Log.i("ErrorYelp", e.toString());
+				}
+				try{
+					address.setState(businessLocation.get("state_code").toString());
+				}catch(Exception e){
+					Log.i("ErrorYelp", e.toString());
+				}
+				try{
+					address.setCountry(businessLocation.get("country_code").toString());
+				}catch(Exception e){
+					Log.i("ErrorYelp", e.toString());
+				}
+				
+	    			// Find deals
+	    			ArrayList<Deal> deals = new ArrayList<Deal>();
+	    			JSONArray businessDeals = null;
+	    			try{
+	    				businessDeals = (JSONArray) responseBusiness.get("deals");
+	    			}catch(Exception e){
+	    				Log.i("ErrorYelp", e.toString());
+	    			}
+	    			if(businessDeals != null){
+	    				for(int j = 0; j < businessDeals.size(); j++){
+	    					JSONObject businessDeal = null;
+	    					try{
+	    						businessDeal = (JSONObject) businessDeals.get(j);
+	    					}catch(Exception e){
+	    	    					Log.i("ErrorYelp", e.toString());
+	    	    				}
+	    					Deal deal = new Deal();
+	    					try{
+	    						deal.setTitle(businessDeal.get("title").toString());
+	    					}catch(Exception e){
+		    					Log.i("ErrorYelp", e.toString());
+		    				}
+	    					try{
+	    						deal.setLink(businessDeal.get("url").toString());
+	    					}catch(Exception e){
+		    					Log.i("ErrorYelp", e.toString());
+		    				}
+	    					try{
+	    						deal.setCurrency(businessDeal.get("currency_code").toString());
+	    					}catch(Exception e){
+		    					Log.i("ErrorYelp", e.toString());
+		    				}
+	    					try{
+	    						deal.setImage(businessDeal.get("image_url").toString());
+	    					}catch(Exception e){
+		    					Log.i("ErrorYelp", e.toString());
+		    				}
+	    					try{
+	    						deal.setPopular(Boolean.valueOf(businessDeal.get("is_popular").toString()));
+	    					}catch(Exception e){
+		    					Log.i("ErrorYelp", e.toString());
+		    				}
+	    					try{
+	    						deals.add(deal);
+	    					}catch(Exception e){
+		    					Log.i("ErrorYelp", e.toString());
+		    				}
+	    				}
+	    			}
+	    		// Create business object
+	    		Business business = new Business(); 
+	    		try{
+	    			business.setName(responseBusiness.get("name").toString());
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setPhone(responseBusiness.get("display_phone").toString());
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setType(yelpApiCli.getTerm());
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setLink(responseBusiness.get("mobile_url").toString());
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setAddress(address);
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setDeals(deals);
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setOverallRating(Double.parseDouble(responseBusiness.get("rating").toString()));
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setRatingImage(responseBusiness.get("rating_img_url").toString());
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setNumberOfReviews(Integer.parseInt(responseBusiness.get("review_count").toString()));
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setPhoto(responseBusiness.get("image_url").toString());
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		
+	    		// Latitude and Longitude coordinate 
+	    		JSONObject llJSON = null;
+	    		try{
+	    			llJSON = (JSONObject) businessLocation.get("coordinate");
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setLongitude(Double.parseDouble(llJSON.get("longitude").toString()));
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setLatitude(Double.parseDouble(llJSON.get("latitude").toString()));
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		try{
+	    			business.setDistance(Double.parseDouble(businessJSON.get("distance").toString()));
+	    		}catch(Exception e){
+	    			Log.i("ErrorYelp", e.toString());
+			}
+	    		System.out.println(business);
+	    		businesses.add(business);
 	    		}
-    		}
-    		
-    		// Create business object
-    		Business business = new Business();
-    	
-    		business.setName(responseBusiness.get("name").toString());
-    		business.setPhone(responseBusiness.get("display_phone").toString());
-    		business.setType(yelpApiCli.getTerm());
-    		business.setLink(responseBusiness.get("mobile_url").toString());
-    		business.setAddress(address);
-    		business.setDeals(deals);
-    		business.setOverallRating(Double.parseDouble(responseBusiness.get("rating").toString()));
-    		business.setNumberOfReviews(Integer.parseInt(responseBusiness.get("review_count").toString()));
-    		business.setPhoto(responseBusiness.get("image_url").toString());
-    		
-    		// Latitude and Longitude coordinate 
-    		JSONObject llJSON = (JSONObject) businessLocation.get("coordinate");
-    		business.setLongitude(Double.parseDouble(llJSON.get("longitude").toString()));
-    		business.setLatitude(Double.parseDouble(llJSON.get("latitude").toString()));
-    		business.setDistance(Double.parseDouble(businessJSON.get("distance").toString()));
-    		System.out.println(business);
-    		businesses.add(business);
-    		}
-    		catch(Exception e){
-    			Log.i("ErrorYelp", e.toString());
-    		}
-    		
-    		
+	    	}
+	    return businesses;
+    }catch(Exception e){
+    		Log.i("ErrorYelp", e.toString());
     	}
-    }
-	return businesses;
-  }
+    return null;
+}
+	
 
 
-  public static ArrayList<Business> getBusinesses(String term, double latitude, double longitude) {
+  @SuppressLint("DefaultLocale")
+public static ArrayList<Business> getBusinesses(String term, double latitude, double longitude, AssetManager assetManager) {
 	    YelpAPICLI yelpApiCli = new YelpAPICLI(term, (latitude + "," + longitude), String.valueOf(DEFAULT_RADIUS));
 
 	    YelpAPI yelpApi = new YelpAPI(CONSUMER_KEY, CONSUMER_SECRET, TOKEN, TOKEN_SECRET);
-	    return queryAPI(yelpApi, yelpApiCli);
+	    ArrayList<Business> businesses = queryAPI(yelpApi, yelpApiCli);
+	    ArrayList<Business> validBusinesses = new ArrayList<Business>();
+
+	    if(businesses != null){
+		    // Check for local businesses
+		    boolean valid = true;
+	    		for(int i = 0; i < businesses.size(); i++){
+		    		for(Importer importer : Importer.importers){	
+		    			if(importer != null && businesses.get(i) != null &&
+		    			   importer.getCompanyName() != null && businesses.get(i).getName() != null &&
+		    			   importer.getCompanyName().toLowerCase().contains(businesses.get(i).getName().toLowerCase())){
+		    				valid = false;
+		    				break;
+		    			}
+		    			//double result = (Double) LevenshteinCalculator.calculateDistance(businesses.get(i).getName(), importer.getCompanyName());
+		    			// Remove business with name similarity with importer 
+		    			//if(result <= DEFAULT_FILTER_VALUE){
+		    			//	Log.i("Yelp-CSV", "Eliminated: " + Double.toString(result) + " ---> " +businesses.get(i).getName() + "---->" + importer.getCompanyName());
+		    			//	valid = false;
+		    			//	break;
+		    			//}
+		    		}
+		    		if(valid == true){
+		    			validBusinesses.add(businesses.get(i));
+		    		}
+		    		valid = true;
+		    }
+	    }
+	    Log.i("Yelp", "Galvao ACABOOOUUUU!!!");
+	    return validBusinesses;
   }
   
 

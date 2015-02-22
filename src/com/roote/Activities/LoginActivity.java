@@ -2,8 +2,6 @@ package com.roote.Activities;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-
 
 import android.content.Intent;
 import android.content.pm.PackageInfo;
@@ -20,15 +18,13 @@ import com.facebook.AppEventsLogger;
 import com.facebook.model.GraphUser;
 import com.roote.Fragments.LoginFragment;
 import com.roote.Utils.RemoveFragmentListener;
-import com.roote.entity.Business;
 
 public class LoginActivity extends FragmentActivity implements
 		RemoveFragmentListener {
 	private Fragment loginFragment;
 	private GraphUser userInfo;
 	private Boolean loggedin = false;
-	private ArrayList<Business> businesses;
-	
+
 	public GraphUser getUserInfo() {
 		return userInfo;
 	}
@@ -43,7 +39,6 @@ public class LoginActivity extends FragmentActivity implements
 		// actionBar.hide()
 		
 		super.onCreate(savedInstanceState);
-	
 		try {
 			PackageInfo info = getPackageManager()
 					.getPackageInfo("com.roote",

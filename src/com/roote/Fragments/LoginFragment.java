@@ -4,8 +4,10 @@ import java.util.Arrays;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.support.v4.view.ViewPager;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -19,22 +21,25 @@ import com.facebook.UiLifecycleHelper;
 import com.facebook.model.GraphUser;
 import com.facebook.widget.LoginButton;
 import com.roote.R;
+import com.roote.Adapters.ImageAdapter;
 import com.roote.Utils.RemoveFragmentListener;
+import com.viewpagerindicator.CirclePageIndicator;
+import com.viewpagerindicator.PageIndicator;
 
-public class LoginFragment extends Fragment{
-	
+public class LoginFragment extends Fragment {
+
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container,
 			Bundle savedInstanceState) {
 		View view = inflater.inflate(R.layout.fragment_login, container, false);
 
 		// Setup page adapter
-		//ViewPager viewPager = (ViewPager) view.findViewById(R.id.view_pager);
-		//ImageAdapter adapter = new ImageAdapter(view.getContext());
-		//viewPager.setAdapter(adapter);
-		//PageIndicator mIndicator = (CirclePageIndicator) view
-		//		.findViewById(R.id.indicator);
-		//mIndicator.setViewPager(viewPager);
+		ViewPager viewPager = (ViewPager) view.findViewById(R.id.view_pager);
+		ImageAdapter adapter = new ImageAdapter(view.getContext());
+		viewPager.setAdapter(adapter);
+		PageIndicator mIndicator = (CirclePageIndicator) view.findViewById(R.id.indicator);
+		((CirclePageIndicator) mIndicator).setFillColor(Color.parseColor(getString(R.color.red)));
+		mIndicator.setViewPager(viewPager);
 
 		// Request Permissions
 		LoginButton authButton = (LoginButton) view
@@ -44,6 +49,7 @@ public class LoginFragment extends Fragment{
 				"user_friends"));
 		return view;
 	}
+
 	private static final String TAG = "MainFragment";
 	private UiLifecycleHelper uiHelper;
 
